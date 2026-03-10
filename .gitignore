@@ -1,38 +1,47 @@
-# Virtual environments
-.venv
+
+# Python environments
+.venv/
 venv/
 env/
 
-# Environment variables
-.env
-.env.local
-.env.*.local
+# Python cache / build
 
-# IDE
+**pycache**/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+build/
+dist/
+
+# Environment variables
+
+.env
+.env.*
+
+# IDE settings
+
+
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.egg-info/
-dist/
-build/
 
-# OS
+# OS files
+
+
 .DS_Store
 Thumbs.db
 
-# Dependencies
-node_modules/
-package-lock.json
 
-# Data and Models
-*.pth
+# Model weights (large files)
+
 *.pt
-data/images/
+*.pth
+
+# Generated data / training outputs
+
 saved_models/
+
+# Local datasets
+
+data/images/
