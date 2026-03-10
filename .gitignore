@@ -30,3 +30,9 @@ Thumbs.db
 # Dependencies
 node_modules/
 package-lock.json
+
+# Data and Models
+*.pth
+*.pt
+data/images/
+saved_models/

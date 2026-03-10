@@ -68,7 +68,7 @@ if uploaded_file is not None:
         # ── Detection ────────────────────────────────────────────────────
         with col1:
             st.subheader("Detected Cow")
-            bbox_vis = draw_bbox(image_bgr, result["bbox"])
+            bbox_vis = draw_bbox(result["processed_image"], result["bbox"])
             st.image(
                 cv2.cvtColor(bbox_vis, cv2.COLOR_BGR2RGB),
                 use_container_width=True,
@@ -78,7 +78,7 @@ if uploaded_file is not None:
         with col2:
             st.subheader("Segmentation Mask")
             if show_mask_overlay:
-                mask_vis = overlay_mask(image_bgr, result["mask"])
+                mask_vis = overlay_mask(result["processed_image"], result["mask"])
                 st.image(
                     cv2.cvtColor(mask_vis, cv2.COLOR_BGR2RGB),
                     use_container_width=True,

@@ -31,14 +31,23 @@ class FeatureExtractor:
 
         area = cv2.contourArea(contour)
         perimeter = cv2.arcLength(contour, closed=True)
+
         x, y, w, h = cv2.boundingRect(contour)
+
         hull = cv2.convexHull(contour)
         hull_area = cv2.contourArea(hull)
 
-        # Body length = max horizontal extent, body height = max vertical extent
         body_length = w
         body_height = h
+
         aspect_ratio = w / h if h > 0 else 0.0
+
+        bbox_area = w * h if (w * h) > 0 else 1
+
+        # Normalized morphological features
+        body_area_ratio = area / bbox_area
+        solidity = area / hull_area if hull_area > 0 else 0.0
+        compactness = (perimeter ** 2) / area if area > 0 else 0.0
 
         return {
             "body_area_px": int(area),
@@ -49,6 +58,11 @@ class FeatureExtractor:
             "contour_perimeter": round(perimeter, 2),
             "convex_hull_area": int(hull_area),
             "aspect_ratio": round(aspect_ratio, 2),
+
+            # New scale-invariant features
+            "body_area_ratio": round(body_area_ratio, 4),
+            "solidity": round(solidity, 4),
+            "compactness": round(compactness, 4),
         }
 
     @staticmethod
@@ -62,4 +76,8 @@ class FeatureExtractor:
             "contour_perimeter": 0.0,
             "convex_hull_area": 0,
             "aspect_ratio": 0.0,
+
+            "body_area_ratio": 0.0,
+            "solidity": 0.0,
+            "compactness": 0.0,
         }
