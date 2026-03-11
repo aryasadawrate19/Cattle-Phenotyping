@@ -23,6 +23,9 @@ class TraitPredictor:
             "contour_perimeter",
             "convex_hull_area",
             "aspect_ratio",
+            "body_area_ratio",
+            "solidity",
+            "compactness",
         ]
         self._load_models()
 
