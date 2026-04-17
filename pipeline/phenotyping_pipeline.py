@@ -3,6 +3,7 @@ Phenotyping Pipeline
 Orchestrates the full pipeline: detection → segmentation → feature extraction → trait prediction.
 """
 
+import os
 import cv2
 import numpy as np
 
@@ -40,16 +41,22 @@ class PhenotypingPipeline:
         sam_checkpoint: str = "sam_vit_b_01ec64.pth",
         trait_model_dir: str = "saved_models",
     ):
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+        yolo_model_path = yolo_model if os.path.isabs(yolo_model) else os.path.join(project_root, yolo_model)
+        sam_checkpoint_path = sam_checkpoint if os.path.isabs(sam_checkpoint) else os.path.join(project_root, sam_checkpoint)
+        trait_model_path = trait_model_dir if os.path.isabs(trait_model_dir) else os.path.join(project_root, trait_model_dir)
+
         print("Loading cow detector (YOLOv8n)...")
-        self.detector = CowDetector(model_path=yolo_model)
+        self.detector = CowDetector(model_path=yolo_model_path)
 
         print("Loading segmenter (SAM ViT-B)...")
-        self.segmenter = CowSegmenter(checkpoint_path=sam_checkpoint)
+        self.segmenter = CowSegmenter(checkpoint_path=sam_checkpoint_path)
 
         self.feature_extractor = FeatureExtractor()
 
         print("Loading trait predictor (XGBoost)...")
-        self.predictor = TraitPredictor(model_dir=trait_model_dir)
+        self.predictor = TraitPredictor(model_dir=trait_model_path)
 
         print("Pipeline ready.")
 
@@ -109,5 +116,9 @@ class PhenotypingPipeline:
 
         result["estimated_weight_kg"] = traits["estimated_weight_kg"]
         result["body_condition_score"] = traits["body_condition_score"]
+        result["body_length_cm"] = traits.get("body_length_cm", 0.0)
+        result["withers_height_cm"] = traits.get("withers_height_cm", 0.0)
+        result["heart_girth_cm"] = traits.get("heart_girth_cm", 0.0)
+        result["hip_length_cm"] = traits.get("hip_length_cm", 0.0)
 
         return result

@@ -14,7 +14,7 @@ class TraitPredictor:
         self.model_dir = model_dir
         self.weight_model = None
         self.bcs_model = None
-        self.feature_names = [
+        self.pixel_feature_names = [
             "body_area_px",
             "body_length_px",
             "body_height_px",
@@ -27,6 +27,19 @@ class TraitPredictor:
             "solidity",
             "compactness",
         ]
+        self.morphometric_feature_names = [
+            "body_length_cm",
+            "withers_height_cm",
+            "heart_girth_cm",
+            "hip_length_cm",
+        ]
+        self.feature_names = self.pixel_feature_names + self.morphometric_feature_names
+        self.morphometric_models = {
+            "body_length_cm": None,
+            "withers_height_cm": None,
+            "heart_girth_cm": None,
+            "hip_length_cm": None,
+        }
         self._load_models()
 
     def _load_models(self):
@@ -42,6 +55,13 @@ class TraitPredictor:
             self.bcs_model = xgb.XGBRegressor()
             self.bcs_model.load_model(bcs_path)
 
+        for feature_name in self.morphometric_feature_names:
+            model_path = os.path.join(self.model_dir, f"{feature_name}_model.json")
+            if os.path.exists(model_path):
+                model = xgb.XGBRegressor()
+                model.load_model(model_path)
+                self.morphometric_models[feature_name] = model
+
     def predict(self, features: dict) -> dict:
         """
         Predict weight and BCS from morphological features.
@@ -52,11 +72,29 @@ class TraitPredictor:
         Returns:
             dict with estimated_weight_kg and body_condition_score.
         """
+        pixel_vector = np.array(
+            [[features.get(name, 0) for name in self.pixel_feature_names]]
+        )
+
+        morphometric_values = {}
+        for feature_name in self.morphometric_feature_names:
+            if feature_name in features:
+                morphometric_values[feature_name] = float(features[feature_name])
+                continue
+
+            model = self.morphometric_models.get(feature_name)
+            if model is not None:
+                morphometric_values[feature_name] = float(model.predict(pixel_vector)[0])
+            else:
+                morphometric_values[feature_name] = 0.0
+
         feature_vector = np.array(
-            [[features.get(name, 0) for name in self.feature_names]]
+            [[features.get(name, 0) for name in self.pixel_feature_names]
+             + [morphometric_values[name] for name in self.morphometric_feature_names]]
         )
 
         result = {}
+        result.update(morphometric_values)
 
         if self.weight_model is not None:
             result["estimated_weight_kg"] = round(
@@ -106,6 +144,18 @@ class TraitPredictor:
             y_bcs: BCS targets.
         """
         os.makedirs(self.model_dir, exist_ok=True)
+
+        n_pixel_features = len(self.pixel_feature_names)
+        X_pixel = X[:, :n_pixel_features]
+        y_morph = X[:, n_pixel_features:]
+
+        for idx, feature_name in enumerate(self.morphometric_feature_names):
+            model = xgb.XGBRegressor(
+                n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42
+            )
+            model.fit(X_pixel, y_morph[:, idx])
+            model.save_model(os.path.join(self.model_dir, f"{feature_name}_model.json"))
+            self.morphometric_models[feature_name] = model
 
         self.weight_model = xgb.XGBRegressor(
             n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42

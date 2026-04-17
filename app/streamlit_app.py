@@ -41,6 +41,17 @@ with st.sidebar:
     show_mask_overlay = st.checkbox("Show mask overlay", value=True)
     show_raw_mask = st.checkbox("Show raw segmentation mask", value=False)
 
+    st.divider()
+    if st.button("Reload Models"):
+        st.cache_resource.clear()
+        st.rerun()
+
+    cm_model_status = {
+        name: (model is not None)
+        for name, model in pipeline.predictor.morphometric_models.items()
+    }
+    st.caption(f"CM model status: {cm_model_status}")
+
 
 # ── Image upload ─────────────────────────────────────────────────────────────
 uploaded_file = st.file_uploader(
@@ -103,6 +114,12 @@ if uploaded_file is not None:
         feat_col6.metric("Convex Hull Area (px)", f"{features['convex_hull_area']:,}")
         feat_col7.metric("BBox W × H", f"{features['bbox_width']} × {features['bbox_height']}")
 
+        cm_col1, cm_col2, cm_col3, cm_col4 = st.columns(4)
+        cm_col1.metric("Body Length (cm)", round(float(result.get("body_length_cm", 0.0)), 1))
+        cm_col2.metric("Withers Height (cm)", round(float(result.get("withers_height_cm", 0.0)), 1))
+        cm_col3.metric("Heart Girth (cm)", round(float(result.get("heart_girth_cm", 0.0)), 1))
+        cm_col4.metric("Hip Length (cm)", round(float(result.get("hip_length_cm", 0.0)), 1))
+
         st.divider()
 
         # ── Predicted Traits ─────────────────────────────────────────────
@@ -118,6 +135,10 @@ if uploaded_file is not None:
                 "detection_confidence": result["detection_confidence"],
                 "bbox": result["bbox"],
                 **features,
+                "body_length_cm": result.get("body_length_cm", 0.0),
+                "withers_height_cm": result.get("withers_height_cm", 0.0),
+                "heart_girth_cm": result.get("heart_girth_cm", 0.0),
+                "hip_length_cm": result.get("hip_length_cm", 0.0),
                 "estimated_weight_kg": result["estimated_weight_kg"],
                 "body_condition_score": result["body_condition_score"],
             }

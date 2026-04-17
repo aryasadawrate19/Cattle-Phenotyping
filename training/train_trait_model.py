@@ -68,6 +68,13 @@ def extract_features_from_images(
         "compactness",
     ]
 
+    morphometric_features = [
+        "body_length_cm",
+        "withers_height_cm",
+        "heart_girth_cm",
+        "hip_length_cm",
+    ]
+
     X_list, y_weight, y_bcs = [], [], []
 
     for _, row in labels_df.iterrows():
@@ -99,6 +106,10 @@ def extract_features_from_images(
         features = extractor.extract(mask)
 
         vec = [features[name] for name in feature_names]
+
+        # Append morphometric measurements from labels.csv
+        for morph_feat in morphometric_features:
+            vec.append(row[morph_feat])
 
         X_list.append(vec)
         y_weight.append(row["weight"])

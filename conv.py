@@ -5,9 +5,13 @@ df = pd.read_excel("measurements.xlsx")
 labels = pd.DataFrame({
     "image_name": df["Num"].astype(str) + ".png",
     "weight": df["Body weight (kg)"],
-    "bcs": 3.0
+    "body_length_cm": df["Oblique body length (cm)"],
+    "withers_height_cm": df["Withers height(cm)"],
+    "heart_girth_cm": df["Heart girth(cm)"],
+    "hip_length_cm": df["Hip length (cm)"],
+    "bcs": df["BCS"]
 })
 
-labels.to_csv("labels.csv", index=False)
+labels.to_csv("data/labels.csv", index=False)
 
-print("labels.csv created")
+print("data/labels.csv created")
