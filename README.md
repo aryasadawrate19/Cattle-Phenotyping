@@ -99,6 +99,58 @@ python training/train_trait_model.py --data_dir data/images --labels data/labels
 
 Trained models are saved to `saved_models/`.
 
+The training script now evaluates the same deployed chain used by the app:
+
+```
+pixel morphology -> predicted morphometric measurements -> weight / BCS
+```
+
+This avoids validating with manual body measurements that are unavailable at
+inference time. If `animal_id` is present in `data/labels.csv`, validation uses
+group-aware folds so multiple images of the same animal do not leak between
+training and validation. Without `animal_id`, rows with identical manual
+measurements are grouped conservatively.
+
+The script also writes:
+
+- `saved_models/cv_results.json` for paper tables.
+- `saved_models/extracted_features.csv` for reproducible feature analysis.
+
+## Paper-Oriented Experimental Plan
+
+For a publishable small-data study, report this as a feasibility/prototype
+system rather than a fully generalized cattle weighing product.
+
+Recommended experiments:
+
+1. Deployed protocol: image-derived features plus predicted morphometrics.
+2. Pixel-only ablation: image-derived features without predicted cm values.
+3. Manual-measurement upper bound: image features plus true measured cm values.
+4. Baselines: linear regression, random forest, SVR, and XGBoost.
+5. Group-aware validation if repeated images come from the same animal.
+6. Metrics: MAE, RMSE, MAPE, R2, and BCS accuracy within +/-0.5 score.
+7. Error analysis by body weight range, BCS class, detection confidence, and
+   segmentation quality.
+
+## Kaggle Weight Model
+
+The Kaggle-trained Random Forest model from the Cattle Weight Detection Model +
+Dataset 12k notebook should be copied to:
+
+```text
+saved_models/kaggle_weight/final_cattle_weight_model.pkl
+```
+
+This model uses side-view keypoints, sticker-calibrated scale features, and
+segmentation-derived cattle area. It is supported by:
+
+- `models/keypoint_scale_weight_model.py`
+- `pipeline/keypoint_scale_features.py`
+
+The current Streamlit raw-image app does not directly use this model yet because
+the app still needs inference models for cattle keypoints and sticker/cattle
+segmentation. See `docs/kaggle_model_integration.md` for the integration path.
+
 ## Example Output
 
 ```json
@@ -125,3 +177,5 @@ Trained models are saved to `saved_models/`.
 - Without trained XGBoost models, **heuristic estimates** are used for weight and BCS.
 - For best accuracy, train the XGBoost models on your own labelled dataset.
 - GPU is recommended for SAM inference but CPU works (slower).
+- `data/labels.csv` is the active label file. `data/labels_legacy_all_bcs_3.csv`
+  is retained only as a legacy snapshot and should not be used for paper results.

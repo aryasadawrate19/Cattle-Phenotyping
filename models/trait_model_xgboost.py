@@ -134,33 +134,54 @@ class TraitPredictor:
         bcs = 2.0 + fill_ratio * 2.0 + (1.0 / max(aspect, 0.5)) * 0.5
         return round(max(1.0, min(5.0, bcs)), 1)
 
-    def train(self, X: np.ndarray, y_weight: np.ndarray, y_bcs: np.ndarray):
+    def train(
+        self,
+        X: np.ndarray,
+        y_weight: np.ndarray,
+        y_bcs: np.ndarray,
+        y_morph: np.ndarray | None = None,
+    ):
         """
         Train weight and BCS models.
 
         Args:
-            X: Feature matrix (n_samples, n_features).
+            X: Pixel feature matrix, or legacy full feature matrix.
             y_weight: Weight targets.
             y_bcs: BCS targets.
+            y_morph: Manual morphometric targets. When provided, models learn
+                morphometrics from pixel features and train trait models on
+                predicted morphometrics to match deployment.
         """
         os.makedirs(self.model_dir, exist_ok=True)
 
         n_pixel_features = len(self.pixel_feature_names)
-        X_pixel = X[:, :n_pixel_features]
-        y_morph = X[:, n_pixel_features:]
 
+        if y_morph is None:
+            if X.shape[1] <= n_pixel_features:
+                raise ValueError(
+                    "y_morph is required when training from pixel features only."
+                )
+            X_pixel = X[:, :n_pixel_features]
+            y_morph = X[:, n_pixel_features:]
+        else:
+            X_pixel = X[:, :n_pixel_features]
+
+        predicted_morph = []
         for idx, feature_name in enumerate(self.morphometric_feature_names):
             model = xgb.XGBRegressor(
-                n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42
+                n_estimators=100, max_depth=3, learning_rate=0.05, random_state=42
             )
             model.fit(X_pixel, y_morph[:, idx])
             model.save_model(os.path.join(self.model_dir, f"{feature_name}_model.json"))
             self.morphometric_models[feature_name] = model
+            predicted_morph.append(model.predict(X_pixel))
+
+        X_deployed = np.hstack([X_pixel, np.vstack(predicted_morph).T])
 
         self.weight_model = xgb.XGBRegressor(
             n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42
         )
-        self.weight_model.fit(X, y_weight)
+        self.weight_model.fit(X_deployed, y_weight)
         self.weight_model.save_model(
             os.path.join(self.model_dir, "weight_model.json")
         )
@@ -168,7 +189,7 @@ class TraitPredictor:
         self.bcs_model = xgb.XGBRegressor(
             n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42
         )
-        self.bcs_model.fit(X, y_bcs)
+        self.bcs_model.fit(X_deployed, y_bcs)
         self.bcs_model.save_model(
             os.path.join(self.model_dir, "bcs_model.json")
         )

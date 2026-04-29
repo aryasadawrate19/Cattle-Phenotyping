@@ -14,6 +14,7 @@ from PIL import Image
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from models.keypoint_scale_weight_model import KeypointScaleWeightPredictor
 from pipeline.phenotyping_pipeline import PhenotypingPipeline
 from utils.visualization import draw_bbox, overlay_mask, create_mask_visualization
 
@@ -103,6 +104,11 @@ def load_cv_results():
     return None
 
 
+@st.cache_resource(show_spinner=False)
+def load_kaggle_weight_model():
+    return KeypointScaleWeightPredictor()
+
+
 def bcs_color(bcs: float) -> str:
     if bcs < 2.0:
         return "#e53935"   # red — very thin
@@ -130,7 +136,17 @@ def bcs_label(bcs: float) -> str:
 
 
 pipeline = load_pipeline()
-cv_results = load_cv_results()
+kaggle_weight_model = load_kaggle_weight_model()
+raw_cv_results = load_cv_results()
+expected_protocol = "pixel_features_plus_predicted_morphometrics"
+cv_results = (
+    raw_cv_results
+    if raw_cv_results and raw_cv_results.get("feature_protocol") == expected_protocol
+    else None
+)
+cv_summary = cv_results.get("summary", {}) if cv_results else {}
+cv_n_samples = cv_results.get("n_samples", 72) if cv_results else 72
+cv_strategy = cv_results.get("cv_strategy", "retrain required") if cv_results else "retrain required"
 
 # ── Header ────────────────────────────────────────────────────────────────────
 st.title("🐄 Cattle Phenotyping System")
@@ -138,16 +154,17 @@ st.markdown("Estimate **body weight**, **body condition score**, and **morphomet
 
 # ── Model performance banner ──────────────────────────────────────────────────
 if cv_results and "summary" in cv_results:
-    s = cv_results["summary"]
     st.markdown(f"""
     <div class="model-perf">
-        <b>Model performance (5-fold cross-validation, n=72):</b> &nbsp;
-        Weight MAE = <b>{s['weight_mae_mean']:.1f} ± {s['weight_mae_std']:.1f} kg</b>
-        &nbsp;|&nbsp; Weight R² = <b>{s['weight_r2_mean']:.3f}</b>
-        &nbsp;|&nbsp; BCS MAE = <b>{s['bcs_mae_mean']:.2f} ± {s['bcs_mae_std']:.2f}</b>
-        &nbsp;|&nbsp; BCS R² = <b>{s['bcs_r2_mean']:.3f}</b>
+        <b>Model performance ({cv_strategy}, n={cv_n_samples}):</b> &nbsp;
+        Weight MAE = <b>{cv_summary['weight_mae_mean']:.1f} ± {cv_summary['weight_mae_std']:.1f} kg</b>
+        &nbsp;|&nbsp; Weight R² = <b>{cv_summary['weight_r2_mean']:.3f}</b>
+        &nbsp;|&nbsp; BCS MAE = <b>{cv_summary['bcs_mae_mean']:.2f} ± {cv_summary['bcs_mae_std']:.2f}</b>
+        &nbsp;|&nbsp; BCS R² = <b>{cv_summary['bcs_r2_mean']:.3f}</b>
     </div>
     """, unsafe_allow_html=True)
+elif raw_cv_results:
+    st.warning("Saved CV results use an older validation protocol. Retrain models to refresh paper-ready metrics.")
 
 st.divider()
 
@@ -158,17 +175,28 @@ with st.sidebar:
     show_raw_mask = st.checkbox("Show raw mask", value=False)
     show_pixel_features = st.checkbox("Show pixel-level features", value=False)
 
+    if kaggle_weight_model.is_loaded:
+        st.info(
+            "Kaggle keypoint-scale weight model found. It is not used for raw "
+            "uploads until keypoint and sticker-mask inference are added."
+        )
+    elif kaggle_weight_model.load_error:
+        st.warning(
+            "Kaggle keypoint-scale model was found but could not be loaded. "
+            "Check the scikit-learn version used to export the pickle."
+        )
+
     st.divider()
     st.header("ℹ️ About")
-    st.markdown("""
+    st.markdown(f"""
     **Pipeline:**
     1. YOLOv8n — cow detection
     2. SAM ViT-B — body segmentation
     3. OpenCV — morphological features
     4. XGBoost — trait prediction
 
-    **Dataset:** 72 Horqin yellow cattle  
-    **Training:** 5-fold cross-validation
+    **Dataset:** {cv_n_samples} Horqin yellow cattle images
+    **Training:** {cv_strategy}
     """)
 
     trained = pipeline.predictor.weight_model is not None
@@ -243,7 +271,7 @@ with right:
     <div class="big-metric">
         <div class="label">Estimated Body Weight</div>
         <div class="value">{weight} kg</div>
-        <div class="sub">Model MAE ≈ 16 kg &nbsp;|&nbsp; ~{weight * 2.205:.0f} lbs</div>
+        <div class="sub">Model MAE ≈ {cv_summary.get('weight_mae_mean', 0):.1f} kg &nbsp;|&nbsp; ~{weight * 2.205:.0f} lbs</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -259,7 +287,7 @@ with right:
         <div style="font-size:42px; font-weight:700; color:{color}; line-height:1.1;">{bcs} <span style="font-size:18px; color:#888;">/ 5.0</span></div>
         <div style="margin: 6px 0;">{dots}</div>
         <div style="font-size:13px; color:{color}; font-weight:600;">{label}</div>
-        <div style="font-size:12px; color:#888; margin-top:4px;">Model MAE ≈ 0.28 score units &nbsp;|&nbsp; Ideal range: 2.5 – 3.5</div>
+        <div style="font-size:12px; color:#888; margin-top:4px;">Model MAE ≈ {cv_summary.get('bcs_mae_mean', 0):.2f} score units &nbsp;|&nbsp; Ideal range: 2.5 – 3.5</div>
     </div>
     """, unsafe_allow_html=True)
 
